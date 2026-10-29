@@ -136,7 +136,7 @@ https://github.com/earlephilhower/arduino-littlefs-upload (github.com in Bing)<b
    **GAMES BROWSER**: Scroll through the game list with the joystick; press Fire to load the selected game.<br/>
    **OPTIONS**: not yet implemented.<br/>
 
-#⚡ Performance & Overclock
+#⚡Performance & Overclock
 
 To achieve acceptable emulation speed, the Raspberry Pi Pico is pushed beyond its factory specifications.<br/>
 In configs.h:<br/>
