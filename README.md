@@ -3,7 +3,7 @@ PiSMS is a Sega Master System emulator developed for the Raspberry Pi Pico (RP20
 The project integrates support for the ILI9341 SPI display, game loading from SD or flash and i2s audio output.
 
 # 🚀 Features
-  -  Core: Emulation of 6809 CPU, VIA6522, AY3891 and vector display manage.
+  -  Core: Emulation of Z80 CPU, VDP video, PSG (SN76496) audio.
   -  Display: ILI9341 320×240 SPI support.
   -  Storage: Loading .sms files and .jpg previews from flash via LittleFS or MicroSD.
   -  Audio: i2s sound generation.
