@@ -46,9 +46,9 @@ bool SMSGameBrowser::begin(FSType fsType) {
         sprintf(browserPath, "%s", GAME_DIR);
     } 
 
-    if (browserExt[0] == '\0') { 
-        sprintf(browserExt, "%s", ".sms");
-    } 
+    if (browserExt[0] == '\0') {
+        snprintf(browserExt, sizeof(browserExt), ".sms");
+    }
 
     // usa Loader per init filesystem
     if (!loader->initFilesystem(fsType)) {
@@ -307,7 +307,7 @@ void SMSGameBrowser::setPath(const char* cpath) {
 }
 
 void SMSGameBrowser::setFileExt(const char* fext) {
-  sprintf(browserExt, "%s", fext);
+    snprintf(browserExt, sizeof(browserExt), "%s", fext);
 }
 
 // Selezione gioco
@@ -378,26 +378,15 @@ bool SMSGameBrowser::hasImageFile(const char* prgName) {
 
 void SMSGameBrowser::draw() {
     if (!needsRedraw) return;
+    
     drawBackground();
+    drawLogo();
+    drawGameImage();
     drawGameName();
     drawArrows();
     drawCredits();
-    drawLogo();
-    drawGameImage();
     
     needsRedraw = false;
-}
-
-void SMSGameBrowser::drawBckBoxes() {
-
-    // Linee verticali leggere ogni 20px
-    for (int x = 0; x < 320; x += 20) {
-        tft->drawFastVLine(x, 0, 239, 0xe73c); 
-    }
-    // Linee orizzontali ogni 20px
-    for (int y = 0; y < 240; y += 20) {
-        tft->drawFastHLine(0, y, 319, 0xe73c);
-    }
 }
 
 void SMSGameBrowser::drawBackground() {
@@ -409,7 +398,7 @@ void SMSGameBrowser::drawLogo() {
         tft->setTextColor(TFT_BLUE);
         tft->setTextSize(2);
         tft->setTextDatum(TL_DATUM);
-        tft->drawString("piSMS", 5, 5);
+        tft->drawString("PiSMS", 5, 5);
         return;
     }
     tft->setSwapBytes(true);
@@ -437,7 +426,7 @@ void SMSGameBrowser::drawGameImage() {
     }
     
     if (!fileExists(imagePath)) {
-        //tft->drawRect(imgX, imgY, imgWidth, imgHeight, TFT_CYAN);
+        tft->drawRect(imgX, imgY, imgWidth, imgHeight, TFT_BLACK);
         tft->setTextColor(TFT_BLACK);
         tft->setTextSize(2);
         tft->setTextDatum(MC_DATUM);
@@ -462,7 +451,6 @@ void SMSGameBrowser::drawGameName() {
     tft->setTextDatum(TC_DATUM);
     tft->fillRect(0, 200, 320, 20, TFT_WHITE);
     tft->drawString(displayName, 160, 200);
-    drawBckBoxes();
 }
 
 void SMSGameBrowser::drawArrows() {

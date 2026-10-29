@@ -48,7 +48,7 @@ private:
     uint8_t sdCSPin;
     FSType currentFS;
     char browserPath[20] = {0};
-    char browserExt[4] = {0};
+    char browserExt[8] = {0};
     
     const unsigned short* logo;
     int logoWidth;
