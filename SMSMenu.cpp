@@ -48,7 +48,7 @@ void SMSMenu::draw() {
 }
 
 void SMSMenu::drawBckBoxes() {
-    
+    /*
     // Linee verticali leggere ogni 20px
     for (int x = 0; x < 320; x += 20) {
         tft->drawFastVLine(x, 0, 239, 0xe73c); // blu leggermente più chiaro
@@ -56,7 +56,7 @@ void SMSMenu::drawBckBoxes() {
     // Linee orizzontali ogni 20px
     for (int y = 0; y < 240; y += 20) {
         tft->drawFastHLine(0, y, 319, 0xe73c);
-    }
+    }*/
 }
 
 void SMSMenu::drawBackground() {
@@ -102,7 +102,9 @@ void SMSMenu::drawMenuItem(MenuItem item, bool selected) {
     const char* text = getMenuItemText(item);
     
     // Cancella area voce (per aggiornamento)
-    //tft->fillRect(0, y - 2, 320, 26, TFT_WHITE);
+    tft->fillRect(0, y - 2, 320, 26, TFT_WHITE);
+    drawBckBoxes();
+    drawLogo();
     
     // Dimensione testo
     tft->setTextSize(2);
@@ -121,10 +123,6 @@ void SMSMenu::drawMenuItem(MenuItem item, bool selected) {
     } else {
         // voce non selezionata
         tft->setTextColor(TFT_NAVY);
-        // calcola posizione del '>'
-        int textWidth = strlen(text) * 12; // approssimazione larghezza
-        int cursorX = (320 - textWidth) / 2 - 20; // 20px prima del testo
-        tft->fillRect(cursorX, y, 8, 8, TFT_BLACK);
         tft->drawString(text, 160, y);
     }
 }
@@ -144,10 +142,6 @@ const char* SMSMenu::getMenuItemText(MenuItem item) {
             return "GAMES BROWSER";
         case MENU_OPT:
             return "OPTIONS";
-        /*
-        case MENU_BIOS:    
-            return "CHOOSE BIOS";
-        */
         default:
             return "???";
     }
