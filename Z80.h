@@ -16,6 +16,8 @@
 #ifndef Z80_H
 #define Z80_H
 
+#define RAMFUNCZ80 __attribute__((section(".time_critical.")))
+
 #include <Arduino.h>
 
 typedef uint8_t (*Z80_ReadCallback)(uint16_t address);
@@ -78,6 +80,8 @@ public:
     bool     pendingEI;
     uint8_t  intVector;
 
+    void setPages(const uint8_t* const* rd, uint8_t* const* wr) { _rd = rd; _wr = wr; }
+
 private:
     uint8_t  A, F;
     uint8_t  B, C, D, E, H, L;
@@ -107,15 +111,27 @@ private:
     Z80_IOReadCallback  readIO;
     Z80_IOWriteCallback writeIO;
 
-    static const uint8_t parityTable[256];
-    static const uint8_t sz53Table[256];
+    static uint8_t parityTable[256];
+    static uint8_t sz53Table[256];
 
-    inline uint8_t readByte(uint16_t addr) {
-        return readMem ? readMem(addr) : 0xFF;
+    const uint8_t* const* _rd = nullptr;   // 64 pagine da 1 KB, fornite da SMSLoader
+    uint8_t* const*       _wr = nullptr;   // nullptr = percorso lento (callback)
+
+    inline uint8_t readByte(uint16_t a) {
+        return _rd[a >> 10][a & 0x3FF];
     }
-    inline void writeByte(uint16_t addr, uint8_t value) {
-        if (writeMem) writeMem(addr, value);
+    inline void writeByte(uint16_t a, uint8_t v) {
+        uint8_t* p = _wr[a >> 10];
+        if (__builtin_expect(p != nullptr, 1)) p[a & 0x3FF] = v;
+        else                                   writeMem(a, v);
     }
+    // Lettura operando a 16 bit con ordine di valutazione GARANTITO
+    inline uint16_t fetch16() {
+        uint8_t lo = readByte(PC++);
+        uint8_t hi = readByte(PC++);
+        return lo | (hi << 8);
+    }
+
     inline uint16_t readWord(uint16_t addr) {
         return readByte(addr) | (readByte(addr + 1) << 8);
     }
@@ -136,8 +152,7 @@ private:
 
     // ── OTTIMIZZAZIONE: ALU 8-bit ora inline nell'header ──────────
     // Prima erano dichiarate qui e definite in Z80.cpp: senza LTO
-    // (non attivo di default nell'Arduino IDE) il compilatore non
-    // poteva inlinearle attraverso il confine delle translation
+    // il compilatore non poteva inlinearle attraverso il confine delle translation
     // unit. Sono fra le funzioni più chiamate dell'intero emulatore
     // (ogni istruzione ALU A,r / A,n) — spostarle qui rende
     // l'inlining sempre possibile, eliminando l'overhead di
@@ -206,36 +221,60 @@ private:
     }
 
     // ── ALU 16-bit, ora inline ─────────────────────────────────
-    inline void add16(uint16_t* reg, uint16_t value) {
-        uint32_t result = *reg + value;
+    inline void add16(uint16_t* hl, uint16_t val) {
+        uint32_t res = (uint32_t)(*hl) + val;
+        uint8_t  hflag = (((*hl & 0x0FFF) + (val & 0x0FFF)) & 0x1000) ? FLAG_H : 0;
+
+        // Preserva S, Z e P/V inalterati!
         F = (F & (FLAG_S | FLAG_Z | FLAG_PV)) |
-            (((*reg ^ value ^ result) >> 8) & FLAG_H) |
-            ((result >> 16) & FLAG_C) |
-            ((result >> 8) & (FLAG_Y | FLAG_X));
-        *reg = result & 0xFFFF;
+            ((res & 0x10000) ? FLAG_C : 0) |
+            ((res >> 8) & (FLAG_Y | FLAG_X)) |
+            hflag;
+
+        *hl = (uint16_t)res;
     }
 
-    inline void adc16(uint16_t value) {
-        uint16_t hl     = (H << 8) | L;
-        uint32_t result = hl + value + (F & FLAG_C);
-        F = (((hl ^ value ^ result) >> 8) & FLAG_H) |
-            ((result >> 16) & FLAG_C) |
-            sz53Table[(result >> 8) & 0xFF] |
-            (((hl ^ value ^ 0x8000) & (value ^ result) & 0x8000) >> 11);
-        H = (result >> 8) & 0xFF;
-        L =  result       & 0xFF;
+    inline void adc16(uint16_t val) {
+        uint16_t hl = (H << 8) | L;
+        uint8_t  c  = (F & FLAG_C);
+        uint32_t res = (uint32_t)hl + val + c;
+
+        // Half-carry: riporto dal bit 11 al bit 12
+        uint8_t hflag = (((hl & 0x0FFF) + (val & 0x0FFF) + c) & 0x1000) ? FLAG_H : 0;
+
+        // Overflow: (~(hl ^ val)) & (hl ^ res) & 0x8000, shiftato di 13 bit -> bit 2 (FLAG_PV)
+        uint8_t vflag = (((~(hl ^ val)) & (hl ^ (uint16_t)res) & 0x8000) >> 13);
+
+        F = ((res & 0x10000) ? FLAG_C : 0) |
+            (((res & 0xFFFF) == 0) ? FLAG_Z : 0) |       // FIX 1: Zero sui 16 bit
+            ((res >> 8) & (FLAG_S | FLAG_Y | FLAG_X)) |
+            hflag |
+            vflag;                                       // FIX 2: Overflow su bit 2 (>> 13)
+
+        H = (uint8_t)(res >> 8);
+        L = (uint8_t)(res & 0xFF);
     }
 
-    inline void sbc16(uint16_t value) {
-        uint16_t hl     = (H << 8) | L;
-        uint32_t result = hl - value - (F & FLAG_C);
+    inline void sbc16(uint16_t val) {
+        uint16_t hl = (H << 8) | L;
+        uint8_t  c  = (F & FLAG_C);
+        uint32_t res = (uint32_t)hl - val - c;
+
+        // Half-carry: prestito dal bit 11 al bit 12
+        uint8_t hflag = (((hl & 0x0FFF) - (val & 0x0FFF) - c) & 0x1000) ? FLAG_H : 0;
+        
+        // Overflow: (hl ^ val) & (hl ^ res) & 0x8000, shiftato di 13 bit -> bit 2 (FLAG_PV)
+        uint8_t vflag = (((hl ^ val) & (hl ^ (uint16_t)res) & 0x8000) >> 13);
+
         F = FLAG_N |
-            (((hl ^ value ^ result) >> 8) & FLAG_H) |
-            ((result >> 16) & FLAG_C) |
-            sz53Table[(result >> 8) & 0xFF] |
-            (((hl ^ value) & (hl ^ result) & 0x8000) >> 11);
-        H = (result >> 8) & 0xFF;
-        L =  result       & 0xFF;
+            ((res & 0x10000) ? FLAG_C : 0) |
+            (((res & 0xFFFF) == 0) ? FLAG_Z : 0) |       // FIX 1: Zero sui 16 bit
+            ((res >> 8) & (FLAG_S | FLAG_Y | FLAG_X)) |
+            hflag |
+            vflag;                                       // FIX 2: Overflow su bit 2 (>> 13)
+
+        H = (uint8_t)(res >> 8);
+        L = (uint8_t)(res & 0xFF);
     }
 
     // ── INC/DEC 8-bit, ora inline ──────────────────────────────

@@ -18,8 +18,7 @@
 // ============================================================================
 // TABELLE LOOKUP
 // ============================================================================
-
-const uint8_t Z80::parityTable[256] = {
+uint8_t Z80::parityTable[256] = {
     4,0,0,4,0,4,4,0,0,4,4,0,4,0,0,4,
     0,4,4,0,4,0,0,4,4,0,0,4,0,4,4,0,
     0,4,4,0,4,0,0,4,4,0,0,4,0,4,4,0,
@@ -38,7 +37,7 @@ const uint8_t Z80::parityTable[256] = {
     4,0,0,4,0,4,4,0,0,4,4,0,4,0,0,4
 };
 
-const uint8_t Z80::sz53Table[256] = {
+uint8_t Z80::sz53Table[256] = {
     0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x08,0x08,0x08,0x08,0x08,0x08,0x08,0x08,
     0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x08,0x08,0x08,0x08,0x08,0x08,0x08,0x08,
     0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x28,0x28,0x28,0x28,0x28,0x28,0x28,0x28,
@@ -60,7 +59,6 @@ const uint8_t Z80::sz53Table[256] = {
 // ============================================================================
 // COSTRUTTORE / INIT / RESET
 // ============================================================================
-
 Z80::Z80() {
     readMem  = nullptr;
     writeMem = nullptr;
@@ -117,7 +115,6 @@ void Z80::setInterruptMode(uint8_t mode) {
 // ============================================================================
 // EXECUTE (N cicli)
 // ============================================================================
-
 int Z80::execute(int cycles) {
     int executed = 0;
     while (executed < cycles) {
@@ -146,11 +143,6 @@ int Z80::execute(int cycles) {
             continue;
         }
         if (pendingINT && IFF1) {
-            static uint32_t intCount = 0;
-            if (++intCount <= 10) {
-                Serial.printf("[Z80] INT accepted #%lu PC=0x%04X IM=%d IFF1=%d\n",
-                              intCount, PC, IM, (int)IFF1);
-            }
             pendingINT = false;
             IFF2 = IFF1;
             IFF1       = false;
@@ -172,13 +164,6 @@ int Z80::execute(int cycles) {
             R = (R & 0x80) | ((R + 1) & 0x7F);
             continue;
         }
-        if (pendingINT && !IFF1) {
-            static uint32_t blockedCount = 0;
-            if (++blockedCount <= 10) {
-                Serial.printf("[Z80] INT BLOCKED #%lu PC=0x%04X IFF1=0 IM=%d\n",
-                              blockedCount, PC, IM);
-            }
-        }
         if (halted) {
             executed += 4;
             R = (R & 0x80) | ((R + 1) & 0x7F);
@@ -196,7 +181,7 @@ void Z80::executeOne() {
     totalCycles += c;
 }
 
-int Z80::step() {
+RAMFUNCZ80 int Z80::step() {
     if (__builtin_expect(!pendingEI & !pendingNMI & !pendingINT & !halted, 1)) {
         const int c = executeInstruction();
         totalCycles += c;
@@ -227,11 +212,6 @@ int Z80::step() {
         return 11;
     }
     if (pendingINT && IFF1) {
-        static uint32_t intCount = 0;
-        if (++intCount <= 10) {
-            Serial.printf("[Z80] INT accepted #%lu PC=0x%04X IM=%d IFF1=%d\n",
-                          intCount, PC, IM, (int)IFF1);
-        }
         pendingINT = false;
         IFF2 = IFF1;
         IFF1       = false;
@@ -265,23 +245,18 @@ int Z80::step() {
     return c;
 }
 
-// ============================================================================
-// ALU 8-bit / 16-bit / INC-DEC / ROTATE-SHIFT
-// ============================================================================
-// OTTIMIZZAZIONE: tutte queste funzioni sono state spostate come
-// inline dentro Z80.h.
+
 
 // ============================================================================
 // DECODER PRINCIPALE - CON SEPARAZIONE FETCH/EXEC
 // ============================================================================
-
-int Z80::executeInstruction() {
+RAMFUNCZ80 int Z80::executeInstruction() {
     uint8_t opcode = readByte(PC++);
     R = (R & 0x80) | ((R + 1) & 0x7F);
     return exec(opcode);
 }
 
-int Z80::exec(uint8_t opcode) {
+RAMFUNCZ80 int Z80::exec(uint8_t opcode) {
     uint8_t x = opcode >> 6;
     uint8_t y = (opcode >> 3) & 0x07;
     uint8_t z = opcode & 0x07;
@@ -316,7 +291,7 @@ int Z80::exec(uint8_t opcode) {
                     }
                 case 1:
                     if (q == 0) {           // LD rp,nn
-                        uint16_t nn = readByte(PC++) | (readByte(PC++) << 8);
+                        uint16_t nn = fetch16();
                         switch (p) {
                             case 0: B=nn>>8; C=nn&0xFF; break;
                             case 1: D=nn>>8; E=nn&0xFF; break;
@@ -342,10 +317,10 @@ int Z80::exec(uint8_t opcode) {
                         case 1: A=readByte((B<<8)|C); return 7;
                         case 2: writeByte((D<<8)|E, A); return 7;
                         case 3: A=readByte((D<<8)|E); return 7;
-                        case 4: { uint16_t a=readByte(PC++)|(readByte(PC++)<<8); writeWord(a,(H<<8)|L); return 16; }
-                        case 5: { uint16_t a=readByte(PC++)|(readByte(PC++)<<8); uint16_t v=readWord(a); H=v>>8; L=v&0xFF; return 16; }
-                        case 6: { uint16_t a=readByte(PC++)|(readByte(PC++)<<8); writeByte(a,A); return 13; }
-                        case 7: { uint16_t a=readByte(PC++)|(readByte(PC++)<<8); A=readByte(a); return 13; }
+                        case 4: { uint16_t a=fetch16(); writeWord(a,(H<<8)|L); return 16; }
+                        case 5: { uint16_t a=fetch16(); uint16_t v=readWord(a); H=v>>8; L=v&0xFF; return 16; }
+                        case 6: { uint16_t a=fetch16(); writeByte(a,A); return 13; }
+                        case 7: { uint16_t a=fetch16(); A=readByte(a); return 13; }
                     }
                     break;
                 case 3:
@@ -368,8 +343,7 @@ int Z80::exec(uint8_t opcode) {
                     }
                 case 4: {                   // INC r
                     // OTTIMIZZAZIONE: _regPtr condiviso, non più
-                    // ricostruito ad ogni chiamata (era qui un array
-                    // locale identico ripetuto in 6+ punti del file)
+                    // ricostruito ad ogni chiamata (era qui un array locale identico)
                     if (y == 6) { uint16_t a=(H<<8)|L; writeByte(a,inc8(readByte(a))); return 11; }
                     *_regPtr[y] = inc8(*_regPtr[y]); return 4;
                 }
@@ -443,7 +417,6 @@ int Z80::exec(uint8_t opcode) {
             if (y==6 && z==6) { halted=true; return 4; }
             // OTTIMIZZAZIONE: _regPtr condiviso invece di due array
             // locali "dst[]"/"src[]" ricostruiti ad ogni LD r,r'
-            // (una delle istruzioni più frequenti in codice reale)
             if      (y==6) { writeByte((H<<8)|L, *_regPtr[z]); return 7; }
             else if (z==6) { *_regPtr[y]=readByte((H<<8)|L); return 7; }
             else           { *_regPtr[y]=*_regPtr[z]; return 4; }
@@ -494,14 +467,14 @@ int Z80::exec(uint8_t opcode) {
                     break;
 
                 case 2: {                   // JP cc,nn
-                    uint16_t nn=readByte(PC++)|(readByte(PC++)<<8);
+                    uint16_t nn=fetch16();
                     if (checkCondition(y)) PC=nn;
                     return 10;
                 }
 
                 case 3:
                     switch (y) {
-                        case 0: { uint16_t nn=readByte(PC++)|(readByte(PC++)<<8); PC=nn; return 10; }
+                        case 0: { uint16_t nn=fetch16(); PC=nn; return 10; }
                         case 1: return handleCB();
                         case 2: { uint8_t port=readByte(PC++); outPort(port,A); return 11; }
                         case 3: { uint8_t port=readByte(PC++); A=inPort(port);  return 11; }
@@ -513,7 +486,7 @@ int Z80::exec(uint8_t opcode) {
                     break;
 
                 case 4: {                   // CALL cc,nn
-                    uint16_t nn=readByte(PC++)|(readByte(PC++)<<8);
+                    uint16_t nn=fetch16();
                     if (checkCondition(y)) { push(PC); PC=nn; return 17; }
                     return 10;
                 }
@@ -528,7 +501,7 @@ int Z80::exec(uint8_t opcode) {
                         push(v); return 11;
                     } else {
                         switch (p) {
-                            case 0: { uint16_t nn=readByte(PC++)|(readByte(PC++)<<8); push(PC); PC=nn; return 17; }
+                            case 0: { uint16_t nn=fetch16(); push(PC); PC=nn; return 17; }
                             case 1: return handleDD();
                             case 2: return handleED();
                             case 3: return handleFD();
@@ -558,25 +531,25 @@ int Z80::exec(uint8_t opcode) {
 // HANDLER PER PREFISSI (leggono il secondo byte e incrementano R)
 // ============================================================================
 
-int Z80::handleCB() {
+RAMFUNCZ80 int Z80::handleCB() {
     uint8_t op2 = readByte(PC++);
     R = (R & 0x80) | ((R + 1) & 0x7F);
     return executeCB(op2);
 }
 
-int Z80::handleED() {
+RAMFUNCZ80 int Z80::handleED() {
     uint8_t op2 = readByte(PC++);
     R = (R & 0x80) | ((R + 1) & 0x7F);
     return executeED(op2);
 }
 
-int Z80::handleDD() {
+RAMFUNCZ80 int Z80::handleDD() {
     uint8_t op2 = readByte(PC++);
     R = (R & 0x80) | ((R + 1) & 0x7F);
     return executeDDFD(true, op2);
 }
 
-int Z80::handleFD() {
+RAMFUNCZ80 int Z80::handleFD() {
     uint8_t op2 = readByte(PC++);
     R = (R & 0x80) | ((R + 1) & 0x7F);
     return executeDDFD(false, op2);
@@ -586,7 +559,7 @@ int Z80::handleFD() {
 // PREFIX CB (riceve l'opcode secondario)
 // ============================================================================
 
-int Z80::executeCB(uint8_t op) {
+RAMFUNCZ80 int Z80::executeCB(uint8_t op) {
     uint8_t x = op >> 6;
     uint8_t y = (op >> 3) & 7;
     uint8_t z = op & 7;
@@ -648,7 +621,7 @@ int Z80::executeCB(uint8_t op) {
 // PREFIX ED (riceve l'opcode secondario)
 // ============================================================================
 
-int Z80::executeED(uint8_t op) {
+RAMFUNCZ80 int Z80::executeED(uint8_t op) {
     uint8_t x = op >> 6;
     uint8_t y = (op >> 3) & 7;
     uint8_t z = op & 7;
@@ -677,7 +650,7 @@ int Z80::executeED(uint8_t op) {
                 return 15;
             }
             case 3: {   // LD (nn),rp / LD rp,(nn)
-                uint16_t addr = readByte(PC++) | (readByte(PC++) << 8);
+                uint16_t addr = fetch16();
                 if (y & 1) {
                     uint16_t v = readWord(addr);
                     switch (p) {
@@ -885,7 +858,7 @@ int Z80::executeED(uint8_t op) {
 // PREFIX DD (IX) / FD (IY) - riceve l'opcode secondario
 // ============================================================================
 
-int Z80::executeDDFD(bool isIX, uint8_t op) {
+RAMFUNCZ80 int Z80::executeDDFD(bool isIX, uint8_t op) {
     uint16_t& idx = isIX ? IX : IY;
 
     uint8_t idxH = idx >> 8;
@@ -897,9 +870,9 @@ int Z80::executeDDFD(bool isIX, uint8_t op) {
         case 0x29: { uint32_t r=idx+idx;        F=(F&(FLAG_S|FLAG_Z|FLAG_PV))|(((idx^idx^r)>>8)&FLAG_H)|((r>>16)&FLAG_C)|((r>>8)&(FLAG_Y|FLAG_X));         idx=r&0xFFFF; return 15; }
         case 0x39: { uint32_t r=idx+SP;         F=(F&(FLAG_S|FLAG_Z|FLAG_PV))|(((idx^SP^r)>>8)&FLAG_H)|((r>>16)&FLAG_C)|((r>>8)&(FLAG_Y|FLAG_X));          idx=r&0xFFFF; return 15; }
 
-        case 0x21: idx = readByte(PC++) | (readByte(PC++) << 8); return 14;
-        case 0x22: { uint16_t a=readByte(PC++)|(readByte(PC++)<<8); writeWord(a,idx); return 20; }
-        case 0x2A: { uint16_t a=readByte(PC++)|(readByte(PC++)<<8); idx=readWord(a);  return 20; }
+        case 0x21: idx = fetch16(); return 14;
+        case 0x22: { uint16_t a=fetch16(); writeWord(a,idx); return 20; }
+        case 0x2A: { uint16_t a=fetch16(); idx=readWord(a);  return 20; }
 
         case 0x23: idx++; return 10;
         case 0x2B: idx--; return 10;
@@ -1002,7 +975,7 @@ int Z80::executeDDFD(bool isIX, uint8_t op) {
 // PREFIX DDCB / FDCB - con mascheramento indirizzo 16 bit
 // ============================================================================
 
-int Z80::executeDDFDCB(bool isIX, int8_t offset, uint8_t op) {
+RAMFUNCZ80 int Z80::executeDDFDCB(bool isIX, int8_t offset, uint8_t op) {
     uint16_t addr = (isIX ? IX : IY) + offset;
     addr &= 0xFFFF;
     uint8_t val = readByte(addr);
