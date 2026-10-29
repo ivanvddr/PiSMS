@@ -53,15 +53,17 @@
 //  Aggiungiamo un pin separato per B2.
 // ─────────────────────────────────────────────────
 
+
 // ── Bit mask porta 0xDC ───────────────────────────
-static constexpr uint8_t DC_J1_UP    = 0x01;
-static constexpr uint8_t DC_J1_DOWN  = 0x02;
-static constexpr uint8_t DC_J1_LEFT  = 0x04;
-static constexpr uint8_t DC_J1_RIGHT = 0x08;
-static constexpr uint8_t DC_J1_BTN1  = 0x10;
-static constexpr uint8_t DC_J1_BTN2  = 0x20;
-static constexpr uint8_t DC_J2_UP    = 0x40;
-static constexpr uint8_t DC_J2_DOWN  = 0x80;
+// ── Bit mask porta 0xDC (Bit 0..7) ────────────────
+static constexpr uint8_t DC_J1_UP    = 0x01;  // bit 0 (1 << 0)
+static constexpr uint8_t DC_J1_DOWN  = 0x02;  // bit 1 (1 << 1)
+static constexpr uint8_t DC_J1_LEFT  = 0x04;  // bit 2 (1 << 2)
+static constexpr uint8_t DC_J1_RIGHT = 0x08;  // bit 3 (1 << 3)
+static constexpr uint8_t DC_J1_BTN1  = 0x10;  // bit 4 (1 << 4) - Button 1 (A)
+static constexpr uint8_t DC_J1_BTN2  = 0x20;  // bit 5 (1 << 5) - Button 2 (B)
+static constexpr uint8_t DC_J2_UP    = 0x40;  // bit 6 (1 << 6)
+static constexpr uint8_t DC_J2_DOWN  = 0x80;  // bit 7 (1 << 7)
 
 // ── Bit mask porta 0xDD ───────────────────────────
 static constexpr uint8_t DD_J2_LEFT  = 0x01;
