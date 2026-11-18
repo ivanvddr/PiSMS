@@ -155,3 +155,7 @@ This project is provided “as is”, for hobby and experimental use.<br/>
 Overclock: May reduce microcontroller lifespan or cause thermal instability.<br/>
 Hardware: The author is not responsible for damage to components (Pico, display, speaker), overheating, or malfunctions caused by incorrect wiring or use of the provided software.<br/>
 Risks: Any hardware or software modification is performed at the user’s own risk. 
+
+# 📜 License
+Pi2600 is released under the GNU General Public License v3.0. See the LICENSE file for details.
+Author: Ivan Vettori ivanvddr
